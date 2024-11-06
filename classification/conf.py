@@ -24,10 +24,10 @@ cfg = _C
 # ---------------------------------- Misc options --------------------------- #
 
 # Setting - see README.md for more information
-_C.SETTING = "continual"
+_C.SETTING = "reset_each_shift"
 
 # Data directory
-_C.DATA_DIR = "./data"
+_C.DATA_DIR = "/home/thilina/SSD2/thilina/datasets/imagenet"
 
 # Weight directory
 _C.CKPT_DIR = "./ckpt"
@@ -426,8 +426,8 @@ def load_cfg_from_args(description="Config options."):
 
 def complete_data_dir_path(data_root_dir: str, dataset_name: str):
     # map dataset name to data directory name
-    mapping = {"imagenet": "imagenet2012",
-               "imagenet_c": "ImageNet-C",
+    mapping = {"imagenet": "IMAGENET",
+               "imagenet_c": "IMAGENET-C",
                "imagenet_r": "imagenet-r",
                "imagenet_a": "imagenet-a",
                "imagenet_k": os.path.join("ImageNet-Sketch", "sketch"),

@@ -120,7 +120,7 @@ def evaluate(description):
             if severity == 5 and domain_name != "none":
                 errs_5.append(err)
 
-            logger.info(f"{cfg.CORRUPTION.DATASET} error % [{domain_name}{severity}][#samples={num_samples}]: {err:.2%}")
+            logger.info(f"{cfg.CORRUPTION.DATASET} [{domain_name}{severity}][#samples={num_samples}]: error % {err:.2%} accuracy % {acc:.2%}")
 
     if len(errs_5) > 0:
         logger.info(f"mean error: {np.mean(errs):.2%}, mean error at 5: {np.mean(errs_5):.2%}")

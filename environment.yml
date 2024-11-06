@@ -133,3 +133,5 @@ dependencies:
     - wcwidth==0.2.13
     - webdataset==0.2.86
     - yacs==0.1.8
+
+prefix: /media/SSD2/thilina/anaconda3/envs/tta
