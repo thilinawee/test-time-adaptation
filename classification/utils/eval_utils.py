@@ -56,6 +56,32 @@ def eval_domain_dict(domain_dict: dict, domain_seq: list):
     logger.info(f"Error over all samples: {1 - sum(correct) / sum(num_samples):.2%}")
 
 
+def get_avg_validation_accuracy(model,
+                                data_loader,
+                                device):
+    
+    """
+    This function gives avg validation accuracy over the given dataset
+    """
+    
+    num_correct = 0.
+    num_samples = 0
+
+    model.eval()
+
+    with torch.no_grad():
+        for i, data in enumerate(data_loader):
+            imgs, labels = data[0], data[1]
+            output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
+            predictions = output.argmax(1)
+
+            num_correct += (predictions == labels.to(device)).float().sum()
+            num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
+
+    accuracy = num_correct.item() / num_samples
+    return accuracy, num_samples
+
+
 def get_accuracy(model: torch.nn.Module,
                  data_loader: torch.utils.data.DataLoader,
                  dataset_name: str,
@@ -67,6 +93,11 @@ def get_accuracy(model: torch.nn.Module,
 
     num_correct = 0.
     num_samples = 0
+
+    unadapted_model = model.original_model
+    unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, data_loader, device)
+    logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
+
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             imgs, labels = data[0], data[1]
