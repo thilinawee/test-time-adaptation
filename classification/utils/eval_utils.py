@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import torch
 import logging
 import numpy as np
@@ -91,6 +93,11 @@ def get_accuracy(model: torch.nn.Module,
                  print_every: int,
                  device: Union[str, torch.device]):
 
+    """
+    Here model is a TTAMethod object. The forward method of this object runs the adaptation process
+    if we need to just run the inference, we need to access, model.model object
+    """
+
     num_correct = 0.
     num_samples = 0
 
@@ -116,10 +123,16 @@ def get_accuracy(model: torch.nn.Module,
             # track progress
             num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
             if print_every > 0 and (i+1) % print_every == 0:
-                logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%}")
+                logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
+
+                eval_model = deepcopy(model.model)
+                point_acc, _ = get_avg_validation_accuracy(eval_model, data_loader, device)
+                logger.info(f"Point accuracy: {point_acc:.2%}")
 
             if dataset_name == "ccc" and num_samples >= 7500000:
                 break
+
+
 
     accuracy = num_correct.item() / num_samples
     return accuracy, domain_dict, num_samples
