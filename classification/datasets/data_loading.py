@@ -104,7 +104,7 @@ def get_transform(dataset_name: str, adaptation: str, preprocess: Union[transfor
 def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess: Union[transforms.Compose, None],
                     data_root_dir: str, domain_name: str, domain_names_all: list, severity: int, num_examples: int,
                     rng_seed: int, use_clip: bool, n_views: int = 64, delta_dirichlet: float = 0.,
-                    batch_size: int = 128, shuffle: bool = False, workers: int = 4):
+                    batch_size: int = 128, shuffle: bool = False, workers: int = 4, balanced: bool = True, training: bool = False):
     """
     Create the test data loader
     Input:
@@ -157,7 +157,13 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
                                                     corruption=domain_name,
                                                     corruptions_seq=domain_names_all,
                                                     transform=transform,
-                                                    setting=setting)
+                                                    setting=setting,
+                                                    training=training)
+            
+            if not balanced:
+                test_dataset.set_target_class_dataset([i for i in range(151, 269)])
+
+                
 
         elif dataset_name in ["imagenet_k", "imagenet_r", "imagenet_a", "imagenet_v2"]:
             test_dataset = torchvision.datasets.ImageFolder(root=data_dir, transform=transform)
@@ -209,7 +215,7 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
     try:
         # shuffle the test sequence; deterministic behavior for a fixed random seed
         random.shuffle(test_dataset.samples)
-
+        print(f"dataset length - {len(test_dataset)}")
         # randomly subsample the dataset if num_examples is specified
         if num_examples != -1:
             num_samples_orig = len(test_dataset)

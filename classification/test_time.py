@@ -9,7 +9,7 @@ from utils.misc import print_memory_info
 from utils.eval_utils import get_accuracy, eval_domain_dict
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq
+from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,8 @@ def evaluate(description):
                       "reset_each_shift_correlated"
                       ]
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
+
+    init_wandb(cfg)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
@@ -80,6 +82,35 @@ def evaluate(description):
             logger.warning("not resetting model")
 
         for severity in severities:
+
+            train_data_loader = get_test_loader(
+                setting=cfg.SETTING,
+                adaptation=cfg.MODEL.ADAPTATION,
+                dataset_name=cfg.CORRUPTION.DATASET,
+                preprocess=model_preprocess,
+                data_root_dir=cfg.TRAIN_DATA_DIR, # this should be changed to the data directory of the adaptation dataset
+                domain_name=domain_name,
+                domain_names_all=domain_sequence,
+                severity=severity,
+                num_examples=150000, # 150k for our experiment
+                rng_seed=cfg.RNG_SEED,
+                use_clip=cfg.MODEL.USE_CLIP,
+                n_views=cfg.TEST.N_AUGMENTATIONS,
+                delta_dirichlet=cfg.TEST.DELTA_DIRICHLET,
+                batch_size=cfg.TEST.BATCH_SIZE,
+                shuffle=False, # shuffling is done inside the function
+                workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count()),
+                balanced=False,
+                training=True)
+
+            unique_classes = set()
+            for data in train_data_loader:
+                imgs, labels = data[0], data[1]
+                unique_classes.update(labels.tolist())
+
+            unique_classes = sorted(unique_classes)
+            # print("Unique Classes:", unique_classes)
+
             test_data_loader = get_test_loader(
                 setting=cfg.SETTING,
                 adaptation=cfg.MODEL.ADAPTATION,
@@ -106,7 +137,8 @@ def evaluate(description):
             # evaluate the model
             acc, domain_dict, num_samples = get_accuracy(
                 model,
-                data_loader=test_data_loader,
+                train_data_loader=train_data_loader,
+                val_data_loader = test_data_loader,
                 dataset_name=cfg.CORRUPTION.DATASET,
                 domain_name=domain_name,
                 setting=cfg.SETTING,

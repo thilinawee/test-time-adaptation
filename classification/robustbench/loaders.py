@@ -7,6 +7,7 @@ from torchvision.datasets.vision import VisionDataset
 import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
+from torchvision import datasets
 
 from PIL import Image
 
@@ -15,6 +16,43 @@ import os.path
 import sys
 import json
 import numpy as np
+
+
+# The following ImageFolder supports sample a subset from the entire dataset by index/classes/sample number, at any time after the dataloader created. 
+class SelectedRotateImageFolder(datasets.ImageFolder):
+    def __init__(self, root, train_transform, original=True, rotation=True, rotation_transform=None):
+        super(SelectedRotateImageFolder, self).__init__(root, train_transform)
+        self.original = original
+        self.rotation = rotation
+        self.rotation_transform = rotation_transform
+
+        self.original_samples = self.samples
+
+    def __getitem__(self, index):
+        # path, target = self.imgs[index]
+        path, target = self.samples[index]
+        img_input = self.loader(path)
+
+        if self.transform is not None:
+            img = self.transform(img_input)
+        else:
+            img = img_input
+
+        results = []
+        if self.original:
+            results.append(img)
+            results.append(target)
+
+        return results
+
+    def switch_mode(self, original, rotation):
+        self.original = original
+        self.rotation = rotation
+
+    def set_target_class_dataset(self, target_class_index, logger=None):
+        self.target_class_index = target_class_index
+        self.samples = [(path, idx) for (path, idx) in self.original_samples if idx in self.target_class_index]
+        self.targets = [s[1] for s in self.samples]
 
 
 def make_custom_dataset(root, path_imgs, cls_dict):

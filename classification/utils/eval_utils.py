@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+import wandb
 import torch
 import logging
 import numpy as np
@@ -85,7 +86,8 @@ def get_avg_validation_accuracy(model,
 
 
 def get_accuracy(model: torch.nn.Module,
-                 data_loader: torch.utils.data.DataLoader,
+                 train_data_loader: torch.utils.data.DataLoader,
+                 val_data_loader: torch.utils.data.DataLoader,
                  dataset_name: str,
                  domain_name: str,
                  setting: str,
@@ -102,11 +104,12 @@ def get_accuracy(model: torch.nn.Module,
     num_samples = 0
 
     unadapted_model = model.original_model
-    unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, data_loader, device)
+    unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
     logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
+    wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
 
     with torch.no_grad():
-        for i, data in enumerate(data_loader):
+        for i, data in enumerate(train_data_loader):
             imgs, labels = data[0], data[1]
             output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
             predictions = output.argmax(1)
@@ -123,11 +126,15 @@ def get_accuracy(model: torch.nn.Module,
             # track progress
             num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
             if print_every > 0 and (i+1) % print_every == 0:
+                batch_acc = num_correct / num_samples
                 logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
+                wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
 
                 eval_model = deepcopy(model.model)
-                point_acc, _ = get_avg_validation_accuracy(eval_model, data_loader, device)
-                logger.info(f"Point accuracy: {point_acc:.2%}")
+                avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
+                logger.info(f"Point accuracy: {avg_acc:.2%}")
+                wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
+
 
             if dataset_name == "ccc" and num_samples >= 7500000:
                 break
