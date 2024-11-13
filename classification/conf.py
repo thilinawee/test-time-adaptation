@@ -15,6 +15,7 @@ import numpy as np
 from datetime import datetime
 from iopath.common.file_io import g_pathmgr
 from yacs.config import CfgNode as CfgNode
+import wandb
 
 
 # Global config object (example usage: from core.config import cfg)
@@ -28,6 +29,11 @@ _C.SETTING = "reset_each_shift"
 
 # Data directory
 _C.DATA_DIR = "/home/thilina/SSD2/thilina/datasets/imagenet"
+_C.TRAIN_DATA_DIR = ""
+
+# wandb data
+_C.PROJECT_NAME = ""
+_C.RUN_NAME = ""
 
 # Weight directory
 _C.CKPT_DIR = "./ckpt"
@@ -505,3 +511,23 @@ def ckpt_path_to_domain_seq(ckpt_path: str):
                "sketch": ["painting", "clipart", "real"],
                }
     return mapping[domain]
+
+
+def init_wandb(cfg):
+    wandb.login(key = "853c7a9946668f651a1905cfa9049acd85006274")
+
+    assert cfg.PROJECT_NAME != "", "Please set the project name in the configuration file!"
+    assert cfg.RUN_NAME != "", "Please set the run name in the configuration file!"
+
+    wandb.init(project = cfg.PROJECT_NAME,
+               name = cfg.RUN_NAME)
+    
+    wandb.define_metric("custom_step")
+    wandb.define_metric(f"train_loss/*", step_metric = "custom_step")
+    wandb.define_metric(f"test_loss/*", step_metric = "custom_step")
+    wandb.define_metric(f"avg_accuracy/*", step_metric = "custom_step")
+    wandb.define_metric(f"batch_accuracy/*", step_metric = "custom_step")
+    wandb.define_metric(f"partial_accuracy/*", step_metric = "custom_step")
+    wandb.define_metric(f"partial_test_loss/*", step_metric = "custom_step")
+    wandb.define_metric(f"silhoutte_score/*", step_metric = "custom_step")
+    wandb.define_metric(f"grad_norm/*", step_metric = "custom_step")
