@@ -10,6 +10,7 @@ import os
 import sys
 import logging
 import random
+import json
 import torch
 import numpy as np
 from datetime import datetime
@@ -30,6 +31,7 @@ _C.SETTING = "reset_each_shift"
 # Data directory
 _C.DATA_DIR = "/home/thilina/SSD2/thilina/datasets/imagenet"
 _C.TRAIN_DATA_DIR = ""
+_C.TEST_DATA_DIR = ""
 
 # wandb data
 _C.PROJECT_NAME = ""
