@@ -116,7 +116,7 @@ def evaluate(description):
                 adaptation=cfg.MODEL.ADAPTATION,
                 dataset_name=cfg.CORRUPTION.DATASET,
                 preprocess=model_preprocess,
-                data_root_dir=cfg.DATA_DIR,
+                data_root_dir=cfg.TEST_DATA_DIR,
                 domain_name=domain_name,
                 domain_names_all=domain_sequence,
                 severity=severity,

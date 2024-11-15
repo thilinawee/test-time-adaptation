@@ -149,6 +149,10 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
                                                  corruptions_seq=domain_names_all,
                                                  transform=transform,
                                                  setting=setting)
+            
+            if not balanced:
+                test_dataset.set_target_class_dataset([2]) # this only uses the bird class
+
 
         elif dataset_name == "imagenet_c":
             test_dataset = create_imagenetc_dataset(n_examples=num_examples,
