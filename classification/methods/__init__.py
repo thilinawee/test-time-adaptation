@@ -19,9 +19,15 @@ from methods.deyo import DeYO
 from methods.vte import VTE
 from methods.tpt import TPT
 
+from methods.experiments.sar_wo_freeze import SAR_WO_FREEZE
+from methods.experiments.eata_freeze import EATA_FREEZE
+
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
     'CoTTA', 'RMT', 'SANTA', 'RoTTA', 'AdaContrast', 'GTTA',
     'LAME', 'MEMO', 'Tent', 'EATA', 'SAR', 'RPL', 'ROID',
-    'CMF', 'DeYO', 'VTE', 'TPT',
+    'CMF', 'DeYO', 'VTE', 'TPT', 
+    
+    'SAR_WO_FREEZE',
+    'EATA_FREEZE'
 ]
