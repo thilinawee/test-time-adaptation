@@ -33,6 +33,10 @@ _C.DATA_DIR = "/home/thilina/SSD2/thilina/datasets/imagenet"
 _C.TRAIN_DATA_DIR = ""
 _C.TEST_DATA_DIR = ""
 
+# partial classes
+_C.PARTIAL_CLASSES = []
+_C.FINAL_NUM_EX = 150000
+
 # wandb data
 _C.PROJECT_NAME = ""
 _C.RUN_NAME = ""
@@ -502,6 +506,12 @@ def get_num_classes(dataset_name: str):
     assert dataset_name in dataset_name2num_classes.keys(), \
         f"Dataset '{dataset_name}' is not supported! Choose from: {list(dataset_name2num_classes.keys())}"
     return dataset_name2num_classes[dataset_name]
+
+def get_num_samples_per_class(dataset_name: str):
+    num_samples = {"cifar10_c": 1000, "cifar100_c": 100, "imagenet_c": 50}
+    assert dataset_name in num_samples.keys(), \
+        f"Dataset '{dataset_name}' is not supported! Choose from: {list(num_samples.keys())}"
+    return num_samples[dataset_name]
 
 
 def ckpt_path_to_domain_seq(ckpt_path: str):

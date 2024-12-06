@@ -2,8 +2,9 @@
 This file is based on the code from https://github.com/pytorch/vision/blob/master/torchvision/datasets/folder.py.
 Adapted from: https://github.com/RobustBench/robustbench/blob/master/robustbench/loaders.py
 """
-from torchvision.datasets.vision import VisionDataset
+from typing import List
 
+from torchvision.datasets.vision import VisionDataset
 import torch
 import torch.utils.data as data
 import torchvision.transforms as transforms
@@ -54,7 +55,11 @@ class SelectedRotateImageFolder(datasets.ImageFolder):
         self.samples = [(path, idx) for (path, idx) in self.original_samples if idx in self.target_class_index]
         self.targets = [s[1] for s in self.samples]
 
+    def set_specific_subset(self, indices):
+        self.samples = [self.original_samples[i] for i in indices]
+        self.targets = [s[1] for s in self.samples]
 
+        
 def make_custom_dataset(root, path_imgs, cls_dict):
     with open(path_imgs, 'r') as f:
         fnames = f.readlines()

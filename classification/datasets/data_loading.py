@@ -1,4 +1,5 @@
 import os
+import math
 import logging
 import random
 import numpy as np
@@ -104,7 +105,8 @@ def get_transform(dataset_name: str, adaptation: str, preprocess: Union[transfor
 def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess: Union[transforms.Compose, None],
                     data_root_dir: str, domain_name: str, domain_names_all: list, severity: int, num_examples: int,
                     rng_seed: int, use_clip: bool, n_views: int = 64, delta_dirichlet: float = 0.,
-                    batch_size: int = 128, shuffle: bool = False, workers: int = 4, balanced: bool = True, training: bool = False):
+                    batch_size: int = 128, shuffle: bool = False, workers: int = 4, balanced: bool = True, training: bool = False,
+                    oversampled_indices: np.ndarray = None):
     """
     Create the test data loader
     Input:
@@ -165,7 +167,7 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
                                                     training=training)
             
             if not balanced:
-                test_dataset.set_target_class_dataset([i for i in range(151, 269)])
+                test_dataset.set_specific_subset(oversampled_indices)
 
                 
 
@@ -241,6 +243,7 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
                 test_dataset.samples.sort(key=lambda x: x[1])
     except AttributeError:
         logger.warning("Attribute 'samples' is missing. Continuing without shuffling, sorting or subsampling the files...")
+
 
     return torch.utils.data.DataLoader(test_dataset, batch_size=batch_size, shuffle=shuffle, num_workers=workers, drop_last=False)
 

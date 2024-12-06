@@ -9,7 +9,8 @@ from utils.misc import print_memory_info
 from utils.eval_utils import get_accuracy, eval_domain_dict
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb
+from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class
+from utils.indice_generator import generate_sample_indices
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +67,15 @@ def evaluate(description):
     else:
         severities = cfg.CORRUPTION.SEVERITY
 
+
+    # get the original number of classes for the dataset
+    num_samples_per_class = get_num_samples_per_class(dataset_name=cfg.CORRUPTION.DATASET)
+    # generate the oversampled indices for given classes
+    oversampled_indices = generate_sample_indices(partial_classes = cfg.PARTIAL_CLASSES,
+                                                  n_final_samples = cfg.FINAL_NUM_EX,
+                                                  original_samples_per_class = num_samples_per_class,
+                                                  original_total_classes = num_classes,
+                                                  seed=2024)    
     errs = []
     errs_5 = []
     domain_dict = {}
@@ -92,7 +102,7 @@ def evaluate(description):
                 domain_name=domain_name,
                 domain_names_all=domain_sequence,
                 severity=severity,
-                num_examples=150000, # 150k for our experiment
+                num_examples=cfg.FINAL_NUM_EX,
                 rng_seed=cfg.RNG_SEED,
                 use_clip=cfg.MODEL.USE_CLIP,
                 n_views=cfg.TEST.N_AUGMENTATIONS,
@@ -101,15 +111,18 @@ def evaluate(description):
                 shuffle=False, # shuffling is done inside the function
                 workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count()),
                 balanced=False,
-                training=True)
+                training=True,
+                oversampled_indices=oversampled_indices)
 
-            unique_classes = set()
-            for data in train_data_loader:
-                imgs, labels = data[0], data[1]
-                unique_classes.update(labels.tolist())
+            logger.info(f"Train DataLoader samples: {len(train_data_loader.dataset)}")
 
-            unique_classes = sorted(unique_classes)
-            # print("Unique Classes:", unique_classes)
+            class_counts = {}
+            for i, (inputs, targets) in enumerate(train_data_loader):
+                for target in targets:
+                    if target.item() not in class_counts:
+                        class_counts[target.item()] = 0
+                    class_counts[target.item()] += 1
+            logger.info(f"Training Class distribution: {class_counts}")
 
             test_data_loader = get_test_loader(
                 setting=cfg.SETTING,
