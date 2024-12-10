@@ -153,7 +153,7 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
                                                  setting=setting)
             
             if not balanced:
-                test_dataset.set_target_class_dataset([2]) # this only uses the bird class
+                test_dataset.set_specific_subset(oversampled_indices)
 
 
         elif dataset_name == "imagenet_c":

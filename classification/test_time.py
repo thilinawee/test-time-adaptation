@@ -117,7 +117,8 @@ def evaluate(description):
             logger.info(f"Train DataLoader samples: {len(train_data_loader.dataset)}")
 
             class_counts = {}
-            for i, (inputs, targets) in enumerate(train_data_loader):
+            for i, (data) in enumerate(train_data_loader):
+                _, targets = data[0], data[1]
                 for target in targets:
                     if target.item() not in class_counts:
                         class_counts[target.item()] = 0
@@ -142,6 +143,15 @@ def evaluate(description):
                 shuffle=False,
                 workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count())
             )
+
+            class_counts = {}
+            for i, (data) in enumerate(test_data_loader):
+                _, targets = data[0], data[1]
+                for target in targets:
+                    if target.item() not in class_counts:
+                        class_counts[target.item()] = 0
+                    class_counts[target.item()] += 1
+            logger.info(f"Test Class distribution: {class_counts}")
 
             if i_dom == 0:
                 # Note that the input normalization is done inside of the model

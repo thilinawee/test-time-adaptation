@@ -236,6 +236,11 @@ class CustomCifarDataset(data.Dataset):
     def __len__(self):
         return len(self.samples)
 
+    def set_specific_subset(self, indices):
+        # these samples are shuffled. Therefore we need to sort them by class label
+        self.samples = sorted(self.samples, key=lambda x: x[1])
+        self.samples = [self.samples[i] for i in indices]
+        self.targets = [s[1] for s in self.samples]
 
 if __name__ == '__main__':
     data_dir = '/home/scratch/datasets/imagenet/val'
