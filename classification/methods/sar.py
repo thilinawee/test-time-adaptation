@@ -102,11 +102,24 @@ class SAR(TTAMethod):
             if nm in ['norm']:
                 continue
 
+            # for torchvision vit_b_16 model
+            if 'layer_9' in nm:
+                continue
+            if 'layer_10' in nm:
+                continue
+            if 'layer_11' in nm:
+                continue
+            if 'ln.' in nm:
+                continue
+
+            print(f"{nm} Added to SAR")
             if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)):
                 for np, p in m.named_parameters():
                     if np in ['weight', 'bias']:  # weight is scale, bias is shift
                         params.append(p)
                         names.append(f"{nm}.{np}")
+
+        logger.info(f"SAR Collected Parameters: {names}")
 
         return params, names
 

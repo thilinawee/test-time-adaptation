@@ -21,6 +21,7 @@ from methods.tpt import TPT
 
 from methods.experiments.sar_wo_freeze import SAR_WO_FREEZE
 from methods.experiments.eata_freeze import EATA_FREEZE
+from methods.experiments.tent_freeze import TENT_FREEZE
 
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
@@ -29,5 +30,6 @@ __all__ = [
     'CMF', 'DeYO', 'VTE', 'TPT', 
     
     'SAR_WO_FREEZE',
-    'EATA_FREEZE'
+    'EATA_FREEZE',
+    'TENT_FREEZE'
 ]
