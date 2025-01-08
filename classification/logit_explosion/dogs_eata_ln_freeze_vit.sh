@@ -1,16 +1,15 @@
 #!/bin/bash
 
-export CUDA_VISIBLE_DEVICES=0
-
-
-python test_time.py --cfg cfgs/imagenet_c/tent.yaml \
+python logit_explosion/logits_main.py --cfg cfgs/imagenet_c/experiments/eata_gn_freeze.yaml \
+                         MODEL.ARCH vit_base_patch16_224.augreg2_in21k_ft_in1k \
+                         OPTIM.LR 0.001 \
                          PRINT_EVERY 50 \
                          TRAIN_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          TEST_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
-                         PROJECT_NAME accuracy_debug \
-                         FINAL_NUM_EX 1500 \
-                         RUN_NAME dogs_tent_s5 \
-                         PARTIAL_CLASSES '[151, 152, 153, 154, 155,
+                         PROJECT_NAME logit_explosion \
+                         RUN_NAME dogs_eata_ln_freeze_vit \
+                         CORRUPTION.TYPE "['gaussian_noise']" \
+                         PARTIAL_CLASSES '[151, 152, 153, 154, 155, 
 156, 157, 158, 159, 160, 
 161, 162, 163, 164, 165, 
 166, 167, 168, 169, 170, 
