@@ -90,18 +90,25 @@ def get_accuracy(model: torch.nn.Module,
                  val_data_loader: torch.utils.data.DataLoader,
                  dataset_name: str,
                  domain_name: str,
+                 severity: int,
                  setting: str,
                  domain_dict: dict,
                  print_every: int,
-                 device: Union[str, torch.device]):
+                 device: Union[str, torch.device],
+                 acc_table: wandb.Table):
 
     """
     Here model is a TTAMethod object. The forward method of this object runs the adaptation process
     if we need to just run the inference, we need to access, model.model object
+
+    wandb table has columns in the following order
+    1.corruption 2.severity 3.unadapted_acc 4.minibatch_acc 5.all_cls_acc 
     """
 
     num_correct = 0.
     num_samples = 0
+    all_cls_avg_acc = 0
+    num_log_samples = 0
 
     unadapted_model = model.original_model
     unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
@@ -126,16 +133,31 @@ def get_accuracy(model: torch.nn.Module,
             # track progress
             num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
             if print_every > 0 and (i+1) % print_every == 0:
+                num_log_samples += 1
+
                 batch_acc = num_correct / num_samples
                 logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
                 wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
 
                 eval_model = deepcopy(model.model)
                 avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
-                logger.info(f"Point accuracy: {avg_acc:.2%}")
+                all_cls_avg_acc += avg_acc
+                logger.info(f"all_cls_acc: {avg_acc:.2%}")
                 wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
 
 
+            if dataset_name == "ccc" and num_samples >= 7500000:
+                break
+
+
+    all_cls_avg_acc /= num_log_samples if num_log_samples > 0 else 1 # to avoid division by zero
+    logger.info(f"Average accuracy over all classes: {all_cls_avg_acc:.2%}")
+
+    accuracy = num_correct.item() / num_samples
+
+    acc_table.add_data(domain_name, severity, unadapted_acc, accuracy, all_cls_avg_acc)
+
+    return accuracy, domain_dict, num_samples
             if dataset_name == "ccc" and num_samples >= 7500000:
                 break
 

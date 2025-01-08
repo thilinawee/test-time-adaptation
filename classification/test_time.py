@@ -2,11 +2,12 @@ import os
 import torch
 import logging
 import numpy as np
+import wandb
 import methods
 
 from models.model import get_model
 from utils.misc import print_memory_info
-from utils.eval_utils import get_accuracy, eval_domain_dict
+from utils.eval_utils import get_accuracy, eval_domain_dict, get_accuracy_and_calc_params
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
 from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class
@@ -80,6 +81,7 @@ def evaluate(description):
     errs_5 = []
     domain_dict = {}
 
+    acc_table = wandb.Table(columns=['corruption','severity','unadapted_acc', 'minibatch_acc', 'all_cls_acc'])
     # start evaluation
     for i_dom, domain_name in enumerate(domain_seq_loop):
         if i_dom == 0 or "reset_each_shift" in cfg.SETTING:
@@ -164,10 +166,12 @@ def evaluate(description):
                 val_data_loader = test_data_loader,
                 dataset_name=cfg.CORRUPTION.DATASET,
                 domain_name=domain_name,
+                severity=severity,
                 setting=cfg.SETTING,
                 domain_dict=domain_dict,
                 print_every=cfg.PRINT_EVERY,
-                device=device
+                device=device,
+                acc_table=acc_table,
             )
 
             err = 1. - acc
@@ -188,6 +192,8 @@ def evaluate(description):
 
     if cfg.TEST.DEBUG:
         print_memory_info()
+
+    wandb.log({"acc_table": acc_table})
 
 
 if __name__ == '__main__':
