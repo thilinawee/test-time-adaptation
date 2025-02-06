@@ -6,7 +6,6 @@ python logit_explosion/logits_main.py --cfg cfgs/imagenet_c/experiments/tent_fre
                          TEST_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          PROJECT_NAME logit_explosion \
                          RUN_NAME dogs_tent_freeze_s5 \
-                         CORRUPTION.TYPE "['gaussian_noise']" \
                          PARTIAL_CLASSES '[151, 152, 153, 154, 155, 
 156, 157, 158, 159, 160, 
 161, 162, 163, 164, 165, 

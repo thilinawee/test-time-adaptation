@@ -10,7 +10,7 @@ from utils.misc import print_memory_info
 from utils.eval_utils import get_accuracy, eval_domain_dict, get_accuracy_and_calc_params
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class
+from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class, GlobalVar
 from utils.indice_generator import generate_sample_indices
 
 logger = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ def evaluate(description):
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
     init_wandb(cfg)
+    global_var = GlobalVar()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
@@ -84,6 +85,9 @@ def evaluate(description):
     acc_table = wandb.Table(columns=['corruption','severity','unadapted_acc', 'minibatch_acc', 'all_cls_acc'])
     # start evaluation
     for i_dom, domain_name in enumerate(domain_seq_loop):
+
+        global_var.corruption_name = domain_name
+
         if i_dom == 0 or "reset_each_shift" in cfg.SETTING:
             try:
                 model.reset()
@@ -118,14 +122,14 @@ def evaluate(description):
 
             logger.info(f"Train DataLoader samples: {len(train_data_loader.dataset)}")
 
-            class_counts = {}
-            for i, (data) in enumerate(train_data_loader):
-                _, targets = data[0], data[1]
-                for target in targets:
-                    if target.item() not in class_counts:
-                        class_counts[target.item()] = 0
-                    class_counts[target.item()] += 1
-            logger.info(f"Training Class distribution: {class_counts}")
+            # class_counts = {}
+            # for i, (data) in enumerate(train_data_loader):
+            #     _, targets = data[0], data[1]
+            #     for target in targets:
+            #         if target.item() not in class_counts:
+            #             class_counts[target.item()] = 0
+            #         class_counts[target.item()] += 1
+            # logger.info(f"Training Class distribution: {class_counts}")
 
             test_data_loader = get_test_loader(
                 setting=cfg.SETTING,
@@ -146,14 +150,14 @@ def evaluate(description):
                 workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count())
             )
 
-            class_counts = {}
-            for i, (data) in enumerate(test_data_loader):
-                _, targets = data[0], data[1]
-                for target in targets:
-                    if target.item() not in class_counts:
-                        class_counts[target.item()] = 0
-                    class_counts[target.item()] += 1
-            logger.info(f"Test Class distribution: {class_counts}")
+            # class_counts = {}
+            # for i, (data) in enumerate(test_data_loader):
+            #     _, targets = data[0], data[1]
+            #     for target in targets:
+            #         if target.item() not in class_counts:
+            #             class_counts[target.item()] = 0
+            #         class_counts[target.item()] += 1
+            # logger.info(f"Test Class distribution: {class_counts}")
 
             if i_dom == 0:
                 # Note that the input normalization is done inside of the model
@@ -172,6 +176,7 @@ def evaluate(description):
                 print_every=cfg.PRINT_EVERY,
                 device=device,
                 acc_table=acc_table,
+                cfg=cfg
             )
 
             err = 1. - acc

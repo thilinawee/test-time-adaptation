@@ -163,29 +163,25 @@ class EATA_FREEZE(TTAMethod):
         for nm, m in self.model.named_modules():
 
             # skip top layers for adaptation: layer4 for ResNets and blocks9-11 for Vit-Base
-            if 'layer4' in nm:
-                continue
-            if 'blocks.9' in nm:
-                continue
-            if 'blocks.10' in nm:
-                continue
-            if 'blocks.11' in nm:
-                continue
+            if self.freeze_layers == []:
+                if 'layer4' in nm:
+                    continue
+                if 'blocks.9' in nm:
+                    continue
+                if 'blocks.10' in nm:
+                    continue
+                if 'blocks.11' in nm:
+                    continue
+            else:
+                if any([f'{layer}' in nm for layer in self.freeze_layers]):
+                    continue
+            
+            # @TODO: check why following items are skipped
             if 'norm.' in nm:
                 continue
             if nm in ['norm']:
                 continue
             
-            # for torchvision vit_b_16 model
-            if 'layer_9' in nm:
-                continue
-            if 'layer_10' in nm:
-                continue
-            if 'layer_11' in nm:
-                continue
-            if 'ln.' in nm:
-                continue
-
             if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)):
                 for np, p in m.named_parameters():
                     if np in ['weight', 'bias']:  # weight is scale, bias is shift

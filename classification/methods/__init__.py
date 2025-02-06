@@ -22,6 +22,10 @@ from methods.tpt import TPT
 from methods.experiments.sar_wo_freeze import SAR_WO_FREEZE
 from methods.experiments.eata_freeze import EATA_FREEZE
 from methods.experiments.tent_freeze import TENT_FREEZE
+from methods.experiments.eata_sam_freeze import EATA_SAM_FREEZE
+from methods.experiments.eata_freeze_lr_decay import EATA_FREEZE_LR_DECAY
+from methods.experiments.locotta import LOCOTTA
+from methods.experiments.eata_freeze_stablemax import EATA_FREEZE_STABLEMAX
 
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
@@ -31,5 +35,9 @@ __all__ = [
     
     'SAR_WO_FREEZE',
     'EATA_FREEZE',
-    'TENT_FREEZE'
+    'TENT_FREEZE',
+    'EATA_SAM_FREEZE',
+    'EATA_FREEZE_LR_DECAY',
+    'LOCOTTA',
+    'EATA_FREEZE_STABLEMAX'
 ]

@@ -41,6 +41,23 @@ _C.FINAL_NUM_EX = 150000
 _C.PROJECT_NAME = ""
 _C.RUN_NAME = ""
 
+# freezing layers
+_C.FREEZE_LAYERS = []
+
+# debugging flag for plotting and logging
+_C.DEBUG = False
+
+# log unadapted accuracy
+_C.LOG_UNADAPTED_ACC = True
+
+# --------------------------------- LOCOTTA options ---------------------------- #
+_C.LOCOTTA = CfgNode()
+
+_C.LOCOTTA.TRADEOFF = 1.0
+
+_C.LOCOTTA.L_W = 0.0
+
+
 # Weight directory
 _C.CKPT_DIR = "./ckpt"
 
@@ -543,3 +560,15 @@ def init_wandb(cfg):
     wandb.define_metric(f"partial_test_loss/*", step_metric = "custom_step")
     wandb.define_metric(f"silhoutte_score/*", step_metric = "custom_step")
     wandb.define_metric(f"grad_norm/*", step_metric = "custom_step")
+
+
+# singleton class to save global variable states
+class GlobalVar:
+    _instance = None
+    adaptation_step = 0
+    corruption_name = ""
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super(GlobalVar, cls).__new__(cls)
+        return cls._instance

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class TTAMethod(nn.Module):
     def __init__(self, cfg, model, num_classes):
         super().__init__()
-
+        self.freeze_layers = cfg.FREEZE_LAYERS
         self.original_model = deepcopy(model)
         self.cfg = cfg
         self.model = model

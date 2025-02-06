@@ -8,6 +8,7 @@ import numpy as np
 from typing import Union
 from datasets.imagenet_subsets import IMAGENET_D_MAPPING
 from logit_explosion.calculations import calc_logit_norm
+from conf import GlobalVar
 
 
 logger = logging.getLogger(__name__)
@@ -97,7 +98,8 @@ def get_accuracy(model: torch.nn.Module,
                  domain_dict: dict,
                  print_every: int,
                  device: Union[str, torch.device],
-                 acc_table: wandb.Table):
+                 acc_table: wandb.Table,
+                 cfg):
 
     """
     Here model is a TTAMethod object. The forward method of this object runs the adaptation process
@@ -113,12 +115,20 @@ def get_accuracy(model: torch.nn.Module,
     num_log_samples = 0
 
     unadapted_model = model.original_model
-    unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
-    logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
-    wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
+
+    if cfg.LOG_UNADAPTED_ACC:
+        unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
+        logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
+        wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
+
+    global_var = GlobalVar()
 
     with torch.no_grad():
         for i, data in enumerate(train_data_loader):
+
+            # saving the adaptation step as a global variable
+            global_var.adaptation_step = i
+
             imgs, labels = data[0], data[1]
             output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
             predictions = output.argmax(1)
@@ -185,6 +195,7 @@ def get_accuracy_and_calc_params(model: torch.nn.Module,
     # logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
     # wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
     n_val_loader_slices = 5
+    acc_log_freq = 200
 
     with torch.no_grad():
         for i, data in enumerate(train_data_loader):
@@ -203,10 +214,18 @@ def get_accuracy_and_calc_params(model: torch.nn.Module,
 
             # track progress
             num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
+
+            if print_every > 0 and (i+1) % acc_log_freq == 0:
+                batch_acc = num_correct / num_samples
+                logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
+                wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
+
+                eval_model = deepcopy(model.model)
+                avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
+                logger.info(f"all_cls_acc: {avg_acc:.2%}")
+                wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
+
             if print_every > 0 and (i+1) % print_every == 0:
-                # batch_acc = num_correct / num_samples
-                # logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
-                # wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
                 avg_active_ln = 0
                 avg_inactive_ln = 0
                 eval_model = deepcopy(model.model)
@@ -215,10 +234,8 @@ def get_accuracy_and_calc_params(model: torch.nn.Module,
                 with torch.no_grad():
                     for ii, data in enumerate(sliced_val_loader):
                         imgs, labels = data[0], data[1]
-                        output2 = eval_model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
-                        # avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
-                        # logger.info(f"Point accuracy: {avg_acc:.2%}")
-                        # wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
+                        output2 = eval_model([img.to(device) for img in imgs]) if isinstance(imgs, list) else eval_model(imgs.to(device))
+
                         active_logits = output2[:, cfg.PARTIAL_CLASSES]
                         active_logit_norm, _ = calc_logit_norm(torch.Tensor(active_logits))
                         inactive_logits = output2[:, [x for x in range(output2.shape[1]) if x not in cfg.PARTIAL_CLASSES]]
