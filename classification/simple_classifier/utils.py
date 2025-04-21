@@ -1,6 +1,8 @@
 from typing import List
 from copy import deepcopy
+import os
 
+from mpl_toolkits.mplot3d import Axes3D  # noqa: F401
 import numpy as np
 import torch
 import torch.nn as nn
@@ -101,6 +103,31 @@ def validate(model, dataloader, criterion=nn.CrossEntropyLoss()):
     accuracy = correct / total
     validation_loss = total_loss / len(dataloader)
     return accuracy, validation_loss
+
+def logit_adjusted_validation(model, dataloader, class_distribution, criterion=nn.CrossEntropyLoss(), tau=1.0):
+    model.eval()
+    correct = 0
+    total = 0
+    total_loss = 0
+    with torch.no_grad():
+        for images, labels in dataloader:
+            images, labels = images.to('cuda'), labels.to('cuda')
+            outputs = model(images)
+
+            # adjust logits
+            adjusted_logits = outputs - tau * torch.log(class_distribution + 1e-12)
+
+            # Get predictions from the maximum value
+            _, predicted = torch.max(adjusted_logits.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            loss = criterion(outputs, labels)
+            total_loss += loss.item()
+
+    accuracy = correct / total
+    validation_loss = total_loss / len(dataloader)
+    return accuracy, validation_loss
+
 
 
 def visualize_features(features, labels, title="Umap Visualization of CNN Feature Outputs", reducer=None, plot=True):
@@ -223,7 +250,8 @@ def configure_model(model):
             m.requires_grad_(True)
 
 
-def adapt_model(model, adaptation_loader, test_loader, reducer, log_frequency=100, feature_layer='fc1', epochs=10):
+def adapt_model(model, adaptation_loader, test_loader, reducer, log_frequency=100, feature_layer='fc1', epochs=10, do_adjust_logits=False,
+                tau=1.0, class_distribution=[1.0 for i in range(10)]):
 
     test_acc_list = []
     logit_norm_list = []
@@ -268,7 +296,14 @@ def adapt_model(model, adaptation_loader, test_loader, reducer, log_frequency=10
             tent_optimizer.zero_grad()
             x_data, y_data = x_data.to('cuda'), y_data.to('cuda')
             logits = model(x_data)
-            loss = entropy_loss(logits).mean(0)
+
+            # adjust logits
+            if do_adjust_logits:
+                adjusted_logits = logits + tau * torch.log(class_distribution + 1e-12)
+            else:
+                adjusted_logits = logits
+
+            loss = entropy_loss(adjusted_logits).mean(0)
             loss.backward()
             tent_optimizer.step()
 
@@ -507,21 +542,76 @@ def filter_labels(predicted_labels, true_labels, selected_labels):
     else:
         raise ValueError("features and labels must be of the same type (torch.Tensor or np.ndarray).")
 
-def visualize_3d_features(features, labels):
-    # 
+def visualize_3d_features(
+    features,
+    labels,
+    discrete_colors=['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+                     '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
+    save_path=None,
+    title=None,
+    point_size=20,
+    alpha=0.7
+):
+    """
+    3D scatter of feature vectors with a discrete colorbar for labels 0…N-1,
+    using matplotlib's default 3D view angle (elev=30, azim=-60).
 
-    # Create a 3D scatter plot
+    Args:
+        features (np.ndarray): shape (N, 3).
+        labels (array-like of int): length N, values in [0, len(discrete_colors)-1].
+        discrete_colors (list of str): hex codes in the desired label order.
+        save_path (str, optional): directory to save '3d_features.pdf'.
+        title (str, optional): figure title.
+        point_size (int): scatter marker size.
+        alpha (float): scatter transparency.
+    """
     fig = plt.figure(figsize=(8, 6))
     ax = fig.add_subplot(111, projection='3d')
 
-    scatter = ax.scatter(features[:, 0], features[:, 1], features[:, 2],
-                        c=labels, cmap='tab10', s=20, alpha=0.7)
+    num_labels = len(discrete_colors)
 
-    ax.set_xlabel("Feature 1")
-    ax.set_ylabel("Feature 2")
-    ax.set_zlabel("Feature 3")
-    ax.set_title("3D Feature Space of MNIST")
-    plt.colorbar(scatter, label='Digit Label')
+    # build colormap and norm from the given color order
+    cmap = ListedColormap(discrete_colors)
+    norm = BoundaryNorm(np.arange(-0.5, num_labels + 0.5, 1), num_labels)
+
+    # norm = BoundaryNorm(np.arange(len(discrete_colors) + 1), cmap.N)
+
+    # scatter points, mapping each label to its color by index
+    sc = ax.scatter(
+        features[:, 0], features[:, 1], features[:, 2],
+        c=labels, cmap=cmap, norm=norm,
+        s=point_size, alpha=alpha
+    )
+
+    # show all labels 0…len(discrete_colors)-1 on the colorbar
+    full_range = np.arange(len(discrete_colors))
+    cbar = fig.colorbar(
+        sc,
+        ax=ax,
+        boundaries=np.arange(len(discrete_colors) + 1),
+        ticks=full_range,
+    )
+    cbar.set_label('Label')
+    cbar.set_ticklabels([str(l) for l in full_range])
+
+    # axes labels and optional title
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    if title:
+        ax.set_title(title)
+
+    plt.tight_layout()
+
+    # save if requested
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        fig.savefig(
+            os.path.join(save_path, "3d_features.pdf"),
+            format="pdf",
+            bbox_inches="tight"
+        )
+
     plt.show()
 
 
@@ -580,9 +670,9 @@ def visualize_3d_features_plotly(features, labels):
     fig.update_layout(
         title = "3D Feature Space of MNIST",
         scene = dict(
-            xaxis = dict(title="Feature 1"),
-            yaxis = dict(title="Feature 2"),
-            zaxis = dict(title="Feature 3")
+            xaxis = dict(title="X"),
+            yaxis = dict(title="Y"),
+            zaxis = dict(title="Z")
         ),
         legend=dict(
             title=dict(text="Digit Labels"),
@@ -888,3 +978,75 @@ def animate_2d_features_plotly(features, labels):
     
     # Display the interactive figure. You can rotate, zoom, and pan while the animation plays.
     fig.show()
+
+
+def logit_adjusted_adaptation(model, adaptation_loader, test_loader, log_frequency=100, 
+                              epochs=10, class_distribution=[0.1 for i in range(10)], 
+                              tau=1.0, do_adjust_logits=True):
+
+
+    class_distribution = torch.Tensor(class_distribution).to('cuda')
+
+    print(f"test_class_distribution: {class_distribution}")
+
+    test_acc_list = []
+    logit_norm_list = []
+    reduced_feature_list = []
+    predicted_labels_list = []
+    gradient_norm_dict = {i: [] for i in range(10)}
+
+    deepcopy_model = deepcopy(model)
+    # test accuracy
+    test_accuracy,_ = logit_adjusted_validation(deepcopy_model, test_loader, class_distribution, tau=0.0)
+    test_acc_list.append((test_accuracy, 0))
+
+    steps = 0
+    total_steps = len(adaptation_loader) * epochs
+
+
+    #### Model Configuration ####
+    configure_model(model)
+    bn_params, bn_names = collect_params(model, freeze_layers=["bn100"])
+    print(bn_names)
+    tent_optimizer = optim.Adam(bn_params, lr=1e-3)
+
+
+    for epoch in range(epochs):
+
+        for x_data, y_data in adaptation_loader:
+            tent_optimizer.zero_grad()
+            x_data, y_data = x_data.to('cuda'), y_data.to('cuda')
+            logits = model(x_data)
+
+            logits.retain_grad()
+
+            # adjust logits
+            if do_adjust_logits:
+                adjusted_logits = logits + tau * torch.log(class_distribution + 1e-12)
+            else:
+                adjusted_logits = logits
+
+            # if (steps+1) % log_frequency == 0 or steps == 0:
+            #     print(f"Original Logits: {[x.item() for x in logits[0]]}")
+            #     print(f"Adjusted Logits: {[x.item() for x in adjusted_logits[0]]}")
+
+            loss = entropy_loss(adjusted_logits).mean(0)
+            loss.backward()
+            tent_optimizer.step()
+
+
+            # extract the gradient norm of specific logit w.r.t. loss
+            for i in range(10):
+                gradient_norm_dict[i].append(torch.norm(logits.grad[0, i]).item())
+            
+            if (steps+1) % log_frequency == 0:
+                deepcopy_model = deepcopy(model)
+                # test accuracy
+                test_accuracy,_ = logit_adjusted_validation(deepcopy_model, test_loader, class_distribution, tau=0.0)
+                test_acc_list.append((test_accuracy, steps))
+                print(f"Adaptation step {steps}/{total_steps}, Entropy Loss: {loss.item()}")
+                print(f"Test Accuracy: {test_accuracy}")
+
+            steps += 1
+
+    return test_acc_list, reduced_feature_list, predicted_labels_list, gradient_norm_dict
