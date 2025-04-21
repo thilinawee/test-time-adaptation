@@ -1,15 +1,14 @@
 #!/bin/bash
 
-python test_time.py --cfg cfgs/imagenet_c/sar.yaml \
-                         PRINT_EVERY 50 \
+python test_time.py --cfg cfgs/imagenet_c/deyo.yaml \
+                         MODEL.ARCH vit_base_patch16_224.augreg2_in21k_ft_in1k \
+                         OPTIM.LR 0.001 \
+                         PRINT_EVERY 200 \
                          TRAIN_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          TEST_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
-                         PROJECT_NAME imagenet_c_test-time-adaptation \
-                         FINAL_NUM_EX 150000 \
-                         RUN_NAME dogs_sar_resnet50 \
-                         LOG_AVG_ACC True \
-                         LOG_UNADAPTED_ACC True \
-                         PARTIAL_CLASSES '[151, 152, 153, 154, 155,
+                         PROJECT_NAME imagenet_c_vision_transformers \
+                         RUN_NAME dogs_deyo_vitb16_s5 \
+                         PARTIAL_CLASSES '[151, 152, 153, 154, 155, 
 156, 157, 158, 159, 160, 
 161, 162, 163, 164, 165, 
 166, 167, 168, 169, 170, 

@@ -1,12 +1,12 @@
 #!/bin/bash
 
-python test_time.py --cfg cfgs/imagenet_c/sar.yaml \
+python test_time.py --cfg cfgs/imagenet_c/experiments/eata_logit_adjust.yaml \
                          PRINT_EVERY 50 \
                          TRAIN_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          TEST_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          PROJECT_NAME imagenet_c_test-time-adaptation \
                          FINAL_NUM_EX 150000 \
-                         RUN_NAME dogs_sar_resnet50 \
+                         RUN_NAME dogs_eata_logit_adjust \
                          LOG_AVG_ACC True \
                          LOG_UNADAPTED_ACC True \
                          PARTIAL_CLASSES '[151, 152, 153, 154, 155,

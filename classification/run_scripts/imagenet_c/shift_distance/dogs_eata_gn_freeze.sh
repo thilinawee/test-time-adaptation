@@ -1,14 +1,18 @@
 #!/bin/bash
 
-python test_time.py --cfg cfgs/imagenet_c/sar.yaml \
+python test_time.py --cfg cfgs/imagenet_c/experiments/eata_gn_freeze.yaml \
+                         MODEL.ARCH resnet50_gn.a1h_in1k \
                          PRINT_EVERY 50 \
+                         FREEZE_LAYERS '["layer4"]' \
                          TRAIN_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
                          TEST_DATA_DIR /home/thilina/SSD2/thilina/datasets/imagenet \
-                         PROJECT_NAME imagenet_c_test-time-adaptation \
+                         PROJECT_NAME shift_distance \
                          FINAL_NUM_EX 150000 \
-                         RUN_NAME dogs_sar_resnet50 \
+                         RUN_NAME dogs_eata_gn_freeze_ckpt_save \
                          LOG_AVG_ACC True \
                          LOG_UNADAPTED_ACC True \
+                         CKPT_SAVE_PATH /home/thilina/SSD2/thilina/test-time-adaptation-further_experiments/classification/shift_distance/ckpt/eata_gn_freeze_ckpt_save/ \
+                         CORRUPTION.TYPE '["gaussian_noise"]' \
                          PARTIAL_CLASSES '[151, 152, 153, 154, 155,
 156, 157, 158, 159, 160, 
 161, 162, 163, 164, 165, 

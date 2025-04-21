@@ -7,7 +7,7 @@ python test_time.py --cfg cfgs/imagenet_c/tent.yaml \
                          PROJECT_NAME imagenet_c_test-time-adaptation \
                          FINAL_NUM_EX 150000 \
                          RUN_NAME dogs_tent_s3 \
-                         CORRUPTION.SEVERITY [3] \
+                         CORRUPTION.SEVERITY '[3]' \
                          PARTIAL_CLASSES '[151, 152, 153, 154, 155, 
 156, 157, 158, 159, 160, 
 161, 162, 163, 164, 165, 
