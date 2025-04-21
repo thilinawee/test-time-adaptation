@@ -152,10 +152,14 @@ def get_accuracy(model: torch.nn.Module,
                 wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
 
                 eval_model = deepcopy(model.model)
-                avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
-                all_cls_avg_acc += avg_acc
-                logger.info(f"all_cls_acc: {avg_acc:.2%}")
-                wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
+                if cfg.CKPT_SAVE_PATH != "":
+                    torch.save(eval_model, f"{cfg.CKPT_SAVE_PATH}/ckpt_{i+1}.pt")
+                
+                if cfg.LOG_AVG_ACC:
+                    avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
+                    all_cls_avg_acc += avg_acc
+                    logger.info(f"all_cls_acc: {avg_acc:.2%}")
+                    wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
 
 
             if dataset_name == "ccc" and num_samples >= 7500000:

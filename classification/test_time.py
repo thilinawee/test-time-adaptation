@@ -11,7 +11,7 @@ from utils.eval_utils import get_accuracy, eval_domain_dict, get_accuracy_and_ca
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
 from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class, GlobalVar
-from utils.indice_generator import generate_sample_indices
+from utils.indice_generator import generate_oversample_indices
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,9 @@ def evaluate(description):
 
     init_wandb(cfg)
     global_var = GlobalVar()
+
+    if cfg.CKPT_SAVE_PATH != "":
+        os.makedirs(cfg.CKPT_SAVE_PATH, exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
@@ -73,7 +76,7 @@ def evaluate(description):
     # get the original number of classes for the dataset
     num_samples_per_class = get_num_samples_per_class(dataset_name=cfg.CORRUPTION.DATASET)
     # generate the oversampled indices for given classes
-    oversampled_indices = generate_sample_indices(partial_classes = cfg.PARTIAL_CLASSES,
+    oversampled_indices = generate_oversample_indices(partial_classes = cfg.PARTIAL_CLASSES,
                                                   n_final_samples = cfg.FINAL_NUM_EX,
                                                   original_samples_per_class = num_samples_per_class,
                                                   original_total_classes = num_classes,

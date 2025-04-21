@@ -40,15 +40,30 @@ _C.FINAL_NUM_EX = 150000
 # wandb data
 _C.PROJECT_NAME = ""
 _C.RUN_NAME = ""
+_C.RUN_ID = ""
 
 # freezing layers
 _C.FREEZE_LAYERS = []
 
+# feature output layer
+_C.FEATURE_LAYER = "model.avgpool"
+
 # debugging flag for plotting and logging
 _C.DEBUG = False
 
+# save checkpoints 
+_C.CKPT_SAVE_PATH = ""
+
+# log avg accuracy
+_C.LOG_AVG_ACC = True
+
 # log unadapted accuracy
 _C.LOG_UNADAPTED_ACC = True
+
+# --------------------------------- Logit Adjust Options --------------------- #
+_C.LOGIT_ADJUST = CfgNode()
+_C.LOGIT_ADJUST.TAU = 1.0
+_C.LOGIT_ADJUST.EPSILON = 1e-12
 
 # --------------------------------- LOCOTTA options ---------------------------- #
 _C.LOCOTTA = CfgNode()
@@ -137,6 +152,8 @@ _C.CORRUPTION.SEVERITY = [5, 4, 3, 2, 1]
 # Number of examples to evaluate. If num_ex != -1, each sequence is sub-sampled to the specified amount
 # For ImageNet-C, RobustBench loads a list containing 5000 samples.
 _C.CORRUPTION.NUM_EX = -1
+
+_C.CORRUPTION.NUM_EX_PER_CLASS = 50
 
 # ------------------------------- Batch norm options ------------------------ #
 _C.BN = CfgNode()

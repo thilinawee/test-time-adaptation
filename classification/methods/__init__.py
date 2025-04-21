@@ -26,6 +26,10 @@ from methods.experiments.eata_sam_freeze import EATA_SAM_FREEZE
 from methods.experiments.eata_freeze_lr_decay import EATA_FREEZE_LR_DECAY
 from methods.experiments.locotta import LOCOTTA
 from methods.experiments.eata_freeze_stablemax import EATA_FREEZE_STABLEMAX
+from methods.experiments.tent_logit_adjust import TENT_LOGIT_ADJUST
+from methods.experiments.eata_logit_adjust import EATA_LOGIT_ADJUST
+from methods.experiments.sar_logit_adjust import SAR_LOGIT_ADJUST
+from methods.experiments.deyo_logit_adjust import DeYO_LOGIT_ADJUST
 
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
@@ -39,5 +43,9 @@ __all__ = [
     'EATA_SAM_FREEZE',
     'EATA_FREEZE_LR_DECAY',
     'LOCOTTA',
-    'EATA_FREEZE_STABLEMAX'
+    'EATA_FREEZE_STABLEMAX',
+    'TENT_LOGIT_ADJUST',
+    'EATA_LOGIT_ADJUST',
+    'SAR_LOGIT_ADJUST',
+    'DEYO_LOGIT_ADJUST'
 ]
