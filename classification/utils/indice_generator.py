@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from torch.utils.data import WeightedRandomSampler
 
-def generate_sample_indices(partial_classes: List[int], 
+def generate_oversample_indices(partial_classes: List[int], 
                             n_final_samples: int,
                             original_samples_per_class: int,
                             original_total_classes: int,
@@ -46,3 +46,35 @@ def generate_sample_indices(partial_classes: List[int],
         sampler_indices[i] = indice_map[sampler_indices[i]]
 
     return sampler_indices
+
+
+def generate_sample_indices(partial_classes: List[int], 
+                            original_samples_per_class: int,
+                            original_total_classes: int,
+                            seed: int = 2024):
+    
+    for cls in partial_classes:
+        assert cls < original_total_classes and cls >= 0, f'Class {cls} is not in the original dataset'
+
+    partial_classes = sorted(partial_classes)
+
+    indices = []
+
+    for i, cls in enumerate(partial_classes):
+        for j in range(original_samples_per_class):
+            original_index = cls * original_samples_per_class + j
+            indices.append(original_index)
+
+    return indices
+
+
+def class_counts(data_loader):
+    class_counts = {}
+    for i, (data) in enumerate(data_loader):
+        _, targets = data[0], data[1]
+        for target in targets:
+            if target.item() not in class_counts:
+                class_counts[target.item()] = 0
+            class_counts[target.item()] += 1
+    sorted_class_counts = dict(sorted(class_counts.items(), key=lambda x: x[0]))
+    return sorted_class_counts

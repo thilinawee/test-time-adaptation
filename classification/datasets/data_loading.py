@@ -19,6 +19,7 @@ from datasets.imagenet_d_utils import create_symlinks_and_get_imagenet_visda_map
 from datasets.imagenet_dict import map_dict
 from augmentations.transforms_adacontrast import get_augmentation_versions, get_augmentation
 from augmentations.transforms_augmix import AugMixAugmenter
+from torch.utils.data import Subset
 
 
 logger = logging.getLogger(__name__)
@@ -251,7 +252,7 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
 def get_source_loader(dataset_name: str, adaptation: str, preprocess: Union[transforms.Compose, None],
                       data_root_dir: str, batch_size: int, use_clip: bool, n_views: int = 64,
                       train_split: bool = True, ckpt_path: str = None, num_samples: int = -1,
-                      percentage: float = 1.0, workers: int = 4):
+                      percentage: float = 1.0, workers: int = 4, sample_indices = None):
     """
     Create the source data loader
     Input:
@@ -329,14 +330,20 @@ def get_source_loader(dataset_name: str, adaptation: str, preprocess: Union[tran
 
         logger.info(f"Number of images in source loader: {nr_reduced}/{nr_src_samples} \t Reduction factor = {nr_reduced / nr_src_samples:.4f}")
 
+
+    if sample_indices is not None:
+        subset_dataset = Subset(source_dataset, sample_indices)
+    else:
+        subset_dataset = source_dataset
+        
     # create the source data loader
-    source_loader = torch.utils.data.DataLoader(source_dataset,
+    subset_loader = torch.utils.data.DataLoader(subset_dataset,
                                                 batch_size=batch_size,
                                                 shuffle=True,
                                                 num_workers=workers,
                                                 drop_last=False)
-    logger.info(f"Number of images and batches in source loader: #img = {len(source_dataset)} #batches = {len(source_loader)}")
-    return source_dataset, source_loader
+    logger.info(f"Number of images and batches in source loader: #img = {len(subset_dataset)} #batches = {len(subset_loader)}")
+    return subset_dataset, subset_loader
 
 
 def sort_by_dirichlet(delta_dirichlet: float, samples: list):
