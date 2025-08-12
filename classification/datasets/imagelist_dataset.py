@@ -3,7 +3,7 @@ import json
 import logging
 from PIL import Image
 from torch.utils.data import Dataset
-from typing import Sequence, Callable, Optional
+from typing import Sequence, Optional, Callable, List, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ class ImageList(Dataset):
                 self.samples += self.build_index_json(label_file=file, split=split)
             else:
                 self.samples += self.build_index(label_file=file)
+        self.targets = [s[1] for s in self.samples]
 
     def build_index(self, label_file):
         """Build a list of <image path, class label, domain name> items.
@@ -48,6 +49,7 @@ class ImageList(Dataset):
                 img_path = os.path.join(self.image_root, sample[0])
                 item_list.append((img_path, sample[1], split))
 
+        item_list.sort(key=lambda x: x[1])
         return item_list
 
     def __len__(self):
@@ -60,6 +62,13 @@ class ImageList(Dataset):
             img = self.transform(img)
 
         return img, label, domain, img_path
+
+    def set_specific_subset(self, indices: Sequence[int]) -> None:
+        self.samples = [self.samples[i] for i in indices]
+        # self.targets = [s[1] for s in self.samples]
+
+    def get_labels(self) -> List[int]:
+        return list(self.targets)
 
 
 class FGVCAircraft(Dataset):

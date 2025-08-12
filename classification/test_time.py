@@ -9,9 +9,9 @@ from models.model import get_model
 from utils.misc import print_memory_info
 from utils.eval_utils import get_accuracy, eval_domain_dict, get_accuracy_and_calc_params
 from utils.registry import ADAPTATION_REGISTRY
-from datasets.data_loading import get_test_loader
+from datasets.data_loading import get_test_loader, ImageList, get_transform
 from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class, GlobalVar
-from utils.indice_generator import generate_oversample_indices
+from utils.indice_generator import generate_oversample_indices, generate_oversample_indices_imbalanced_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -73,10 +73,11 @@ def evaluate(description):
         severities = cfg.CORRUPTION.SEVERITY
 
 
-    # get the original number of classes for the dataset
-    num_samples_per_class = get_num_samples_per_class(dataset_name=cfg.CORRUPTION.DATASET)
-    # generate the oversampled indices for given classes
-    oversampled_indices = generate_oversample_indices(partial_classes = cfg.PARTIAL_CLASSES,
+    # generate the oversampled indices for given classes only if datasets are in ["cifar10_c", "cifar100_c", "imagenet_c"]
+    if cfg.CORRUPTION.DATASET in ["cifar10_c", "cifar100_c", "imagenet_c"]:
+        # get the original number of classes for the dataset
+        num_samples_per_class = get_num_samples_per_class(dataset_name=cfg.CORRUPTION.DATASET)
+        oversampled_indices = generate_oversample_indices(partial_classes = cfg.PARTIAL_CLASSES,
                                                   n_final_samples = cfg.FINAL_NUM_EX,
                                                   original_samples_per_class = num_samples_per_class,
                                                   original_total_classes = num_classes,
@@ -88,6 +89,19 @@ def evaluate(description):
     acc_table = wandb.Table(columns=['corruption','severity','unadapted_acc', 'minibatch_acc', 'all_cls_acc'])
     # start evaluation
     for i_dom, domain_name in enumerate(domain_seq_loop):
+
+        if cfg.CORRUPTION.DATASET in ["domainnet126"]:
+             data_files = [os.path.join("datasets", f"{cfg.CORRUPTION.DATASET}_lists", domain_name + "_list.txt")]
+             domainnet_dataset = ImageList(image_root=cfg.TRAIN_DATA_DIR,
+                                           label_files=data_files,
+                                           transform=get_transform('domainnet126', adaptation=cfg.MODEL.ADAPTATION, preprocess=model_preprocess, use_clip=cfg.MODEL.USE_CLIP, n_views=cfg.TEST.N_AUGMENTATIONS) )
+             domainnet_labels = domainnet_dataset.get_labels()
+             # oversample the dataset to 3 times the original dataset length
+             final_num_ex = 3 * len(domainnet_labels) 
+             oversampled_indices = generate_oversample_indices_imbalanced_dataset(cfg.PARTIAL_CLASSES,
+                                                                                    final_num_ex,
+                                                                                    sorted(domainnet_labels))
+        # create oversampled indices for domainnet dataset
 
         global_var.corruption_name = domain_name
 

@@ -199,9 +199,12 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
             else:
                 data_files = [os.path.join("datasets", f"{dataset_name}_lists", domain_name + "_list.txt")]
 
+            # domainnet126
             test_dataset = ImageList(image_root=data_dir,
                                      label_files=data_files,
                                      transform=transform)
+            if not balanced:
+                test_dataset.set_specific_subset(oversampled_indices)
 
         elif dataset_name in generalization_dataset_names:
             if not os.path.exists(data_dir):
