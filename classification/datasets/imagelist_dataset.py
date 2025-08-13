@@ -38,6 +38,7 @@ class ImageList(Dataset):
             img_path = os.path.join(self.image_root, img_file)
             domain_name = img_file.split(os.sep)[0]
             item_list.append((img_path, int(label), domain_name))
+        item_list.sort(key=lambda x: x[1])
 
         return item_list
 
