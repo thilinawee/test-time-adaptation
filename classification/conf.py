@@ -64,6 +64,10 @@ _C.LOG_UNADAPTED_ACC = True
 _C.LOGIT_ADJUST = CfgNode()
 _C.LOGIT_ADJUST.TAU = 1.0
 _C.LOGIT_ADJUST.EPSILON = 1e-12
+_C.LOGIT_ADJUST.TYPE = "la"
+_C.LOGIT_ADJUST.ALPHA = 0.9  # Prior update factor
+_C.LOGIT_ADJUST.CONFIDENCE_THREASHOLD = 0.7
+_C.LOGIT_ADJUST.ENTROPY_THREASHOLD = 0.4  
 
 # --------------------------------- LOCOTTA options ---------------------------- #
 _C.LOCOTTA = CfgNode()

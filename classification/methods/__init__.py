@@ -30,6 +30,11 @@ from methods.experiments.tent_logit_adjust import TENT_LOGIT_ADJUST
 from methods.experiments.eata_logit_adjust import EATA_LOGIT_ADJUST
 from methods.experiments.sar_logit_adjust import SAR_LOGIT_ADJUST
 from methods.experiments.deyo_logit_adjust import DeYO_LOGIT_ADJUST
+from methods.experiments.tent_la_apx import TENT_LA_APX
+from methods.experiments.sar_la_apx import SAR_LA_APX
+from methods.experiments.tca import TCA
+from methods.experiments.eata_la_apx import EATA_LA_APX
+from methods.experiments.deyo_la_apx import DeYO_LA_APX
 
 __all__ = [
     'Source', 'BNTest', 'BNAlpha', 'BNEMA', 'TTAug',
@@ -47,5 +52,10 @@ __all__ = [
     'TENT_LOGIT_ADJUST',
     'EATA_LOGIT_ADJUST',
     'SAR_LOGIT_ADJUST',
-    'DEYO_LOGIT_ADJUST'
+    'DEYO_LOGIT_ADJUST',
+    'TENT_LA_APX',
+    'SAR_LA_APX',
+    'TCA',
+    'EATA_LA_APX',
+    'DEYO_LA_APX'
 ]
