@@ -29,7 +29,7 @@ cfg = _C
 _C.SETTING = "reset_each_shift"
 
 # Data directory
-_C.DATA_DIR = "/home/thilina/SSD2/thilina/datasets/imagenet"
+_C.DATA_DIR = ""
 _C.TRAIN_DATA_DIR = ""
 _C.TEST_DATA_DIR = ""
 
@@ -560,7 +560,7 @@ def ckpt_path_to_domain_seq(ckpt_path: str):
 
 
 def init_wandb(cfg):
-    wandb.login(key = "853c7a9946668f651a1905cfa9049acd85006274")
+    wandb.login(key = "")
 
     assert cfg.PROJECT_NAME != "", "Please set the project name in the configuration file!"
     assert cfg.RUN_NAME != "", "Please set the run name in the configuration file!"
