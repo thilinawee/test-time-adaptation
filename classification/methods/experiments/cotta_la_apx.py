@@ -72,8 +72,8 @@ class CoTTA_LA_APX(TTAMethod):
             self._prior = self._prior / self._prior.sum()
         
         # Adjust logits
-        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
-            if self.minibatch_count == self.WARMUP_STEPS + 1:
+        if self.TAU > 0 and self.minibatch_count >= self.WARMUP_STEPS:
+            if self.minibatch_count == self.WARMUP_STEPS:
                 print("Warmup Completed. Applying Logit Adjustment.") 
             outputs = outputs + self.TAU * torch.log(self._prior.clone())
 

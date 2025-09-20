@@ -80,8 +80,8 @@ class SAR_LA_APX(TTAMethod):
             self._prior = self._prior.clamp(min=self.EPSILON)
             self._prior = self._prior / self._prior.sum()
         # adjust logits
-        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
-            print(f"Applying logit adjustment at step {self.minibatch_count}") if self.minibatch_count == self.WARMUP_STEPS + 1 else None
+        if self.TAU > 0 and self.minibatch_count >= self.WARMUP_STEPS:
+            print(f"Applying logit adjustment at step {self.minibatch_count}") if self.minibatch_count == self.WARMUP_STEPS else None
             outputs = outputs + self.TAU *  torch.log(self._prior.clone())
 
         # filtering reliable samples/gradients for further adaptation; first time forward

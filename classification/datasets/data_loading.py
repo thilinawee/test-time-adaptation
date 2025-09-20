@@ -222,7 +222,6 @@ def get_test_loader(setting: str, adaptation: str, dataset_name: str, preprocess
     try:
         # shuffle the test sequence; deterministic behavior for a fixed random seed
         random.shuffle(test_dataset.samples)
-        print(f"dataset length - {len(test_dataset)}")
         # randomly subsample the dataset if num_examples is specified
         if num_examples != -1:
             num_samples_orig = len(test_dataset)

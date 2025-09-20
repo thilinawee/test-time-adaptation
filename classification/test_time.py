@@ -7,10 +7,10 @@ import methods
 
 from models.model import get_model
 from utils.misc import print_memory_info
-from utils.eval_utils import get_accuracy, eval_domain_dict, get_accuracy_and_calc_params
+from utils.eval_utils import get_accuracy, eval_domain_dict
 from utils.registry import ADAPTATION_REGISTRY
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, init_wandb, get_num_samples_per_class, GlobalVar
+from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq, get_num_samples_per_class, GlobalVar
 from utils.indice_generator import generate_oversample_indices
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,6 @@ def evaluate(description):
                       ]
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
-    init_wandb(cfg)
     global_var = GlobalVar()
 
     if cfg.CKPT_SAVE_PATH != "":
@@ -85,7 +84,6 @@ def evaluate(description):
     errs_5 = []
     domain_dict = {}
 
-    acc_table = wandb.Table(columns=['corruption','severity','unadapted_acc', 'minibatch_acc', 'all_cls_acc'])
     # start evaluation
     for i_dom, domain_name in enumerate(domain_seq_loop):
 
@@ -123,7 +121,7 @@ def evaluate(description):
                 training=True,
                 oversampled_indices=oversampled_indices)
 
-            logger.info(f"Train DataLoader samples: {len(train_data_loader.dataset)}")
+            logger.info(f"Train Dataset samples: {len(train_data_loader.dataset)}")
 
             # class_counts = {}
             # for i, (data) in enumerate(train_data_loader):
@@ -153,6 +151,7 @@ def evaluate(description):
                 workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count())
             )
 
+            logger.info(f"Test Dataset samples: {len(test_data_loader.dataset)}")
             # class_counts = {}
             # for i, (data) in enumerate(test_data_loader):
             #     _, targets = data[0], data[1]
@@ -178,7 +177,6 @@ def evaluate(description):
                 domain_dict=domain_dict,
                 print_every=cfg.PRINT_EVERY,
                 device=device,
-                acc_table=acc_table,
                 cfg=cfg
             )
 
@@ -200,9 +198,6 @@ def evaluate(description):
 
     if cfg.TEST.DEBUG:
         print_memory_info()
-
-    wandb.log({"acc_table": acc_table})
-
 
 if __name__ == '__main__':
     evaluate('"Evaluation.')
