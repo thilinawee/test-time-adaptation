@@ -56,14 +56,21 @@ _C.CKPT_SAVE_PATH = ""
 
 # log avg accuracy
 _C.LOG_AVG_ACC = True
-
 # log unadapted accuracy
 _C.LOG_UNADAPTED_ACC = True
+_C.LOG_PRIOR = False
+_C.LOG_LOSS = False
+_C.AVG_ACC_LOG_FREQ = -1
 
 # --------------------------------- Logit Adjust Options --------------------- #
 _C.LOGIT_ADJUST = CfgNode()
 _C.LOGIT_ADJUST.TAU = 1.0
 _C.LOGIT_ADJUST.EPSILON = 1e-12
+_C.LOGIT_ADJUST.TYPE = "la"
+_C.LOGIT_ADJUST.ALPHA = 0.1  # Prior update factor
+_C.LOGIT_ADJUST.CONFIDENCE_THREASHOLD = 0.7
+_C.LOGIT_ADJUST.ENTROPY_THREASHOLD = 0.4
+_C.LOGIT_ADJUST.WARMUP_STEPS = 0  
 
 # --------------------------------- LOCOTTA options ---------------------------- #
 _C.LOCOTTA = CfgNode()
@@ -496,6 +503,7 @@ def complete_data_dir_path(data_root_dir: str, dataset_name: str):
                "sun397": os.path.join("sun397"),                                # automatic download fails
                "ucf101": os.path.join("ucf101", "UCF-101-midframes"),           # automatic download fails
                "ccc": "",
+               "visda2017": "VisDa2017"
                }
     assert dataset_name in mapping.keys(),\
         f"Dataset '{dataset_name}' is not supported! Choose from: {list(mapping.keys())}"
@@ -535,7 +543,8 @@ def get_num_classes(dataset_name: str):
                                 "domainnet126": 126,
                                 "eurosat": 10, "flowers102": 102, "oxford_pets": 37,
                                 "dtd": 47, "food101": 101, "sun397": 397, "caltech101": 100,
-                                "ucf101": 101, "stanford_cars": 196, "fgvc_aircraft": 100
+                                "ucf101": 101, "stanford_cars": 196, "fgvc_aircraft": 100,
+                                "visda2017": 12
                                 }
     assert dataset_name in dataset_name2num_classes.keys(), \
         f"Dataset '{dataset_name}' is not supported! Choose from: {list(dataset_name2num_classes.keys())}"
@@ -577,6 +586,7 @@ def init_wandb(cfg):
     wandb.define_metric(f"partial_test_loss/*", step_metric = "custom_step")
     wandb.define_metric(f"silhoutte_score/*", step_metric = "custom_step")
     wandb.define_metric(f"grad_norm/*", step_metric = "custom_step")
+    wandb.define_metric(f"prior/*", step_metric = "custom_step")
 
 
 # singleton class to save global variable states

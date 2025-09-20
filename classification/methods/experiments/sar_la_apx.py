@@ -11,6 +11,7 @@ import math
 from methods.base import TTAMethod
 from utils.registry import ADAPTATION_REGISTRY
 from utils.losses import Entropy
+import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,9 @@ def update_ema(ema, new_data, alpha=0.9):
 
 
 @ADAPTATION_REGISTRY.register()
-class SAR_WO_FREEZE(TTAMethod):
+class SAR_LA_APX(TTAMethod):
     """SAR online adapts a model by Sharpness-Aware and Reliable entropy minimization during testing.
     Once SARed, a model adapts itself by updating on every forward.
-    """
-    """
-    Comparing to Original SAR we do freeze certain layers of the model
     """
     def __init__(self, cfg, model, num_classes):
         super().__init__(cfg, model, num_classes)
@@ -41,14 +39,50 @@ class SAR_WO_FREEZE(TTAMethod):
         # setup loss function
         self.softmax_entropy = Entropy()
 
+        # logit adjustment
+        self.TAU = cfg.LOGIT_ADJUST.TAU
+        self.EPSILON = cfg.LOGIT_ADJUST.EPSILON
+        self.WARMUP_STEPS = cfg.LOGIT_ADJUST.WARMUP_STEPS
+
+        self._prior = None
+        self.minibatch_count = 0
+        self.ALPHA = cfg.LOGIT_ADJUST.ALPHA
+
+        self.forward_and_adapt = self.get_forward_function(cfg)
+
+    def get_forward_function(self, cfg):
+        """Return forward function for SAR."""
+        if cfg.LOGIT_ADJUST.TYPE == 'la':
+            return self.loss_la
+        else:
+            raise ValueError(f"Unsupported logit adjustment type: {cfg.LOGIT_ADJUST.TYPE}")
     @torch.enable_grad()  # ensure grads in possible no grad context for testing
-    def forward_and_adapt(self, x):
+    def loss_la(self, x):
         """Forward and adapt model input data.
         Measure entropy of the model prediction, take gradients, and update params.
         """
         imgs_test = x[0]
         self.optimizer.zero_grad()
         outputs = self.model(imgs_test)
+
+        with torch.no_grad():
+            probs = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(probs, dim=1)  
+            
+            class_counts = torch.bincount(predictions, minlength=outputs.shape[1]).float().clamp(min=self.EPSILON)
+            sqrt_counts = torch.sqrt(class_counts)
+            batch_prior = sqrt_counts / sqrt_counts.sum()
+            if self._prior is None:
+                self._prior = batch_prior
+            else:
+                self._prior = self.ALPHA * self._prior + (1 - self.ALPHA) * batch_prior
+
+            self._prior = self._prior.clamp(min=self.EPSILON)
+            self._prior = self._prior / self._prior.sum()
+        # adjust logits
+        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
+            print(f"Applying logit adjustment at step {self.minibatch_count}") if self.minibatch_count == self.WARMUP_STEPS + 1 else None
+            outputs = outputs + self.TAU *  torch.log(self._prior.clone())
 
         # filtering reliable samples/gradients for further adaptation; first time forward
         entropys = self.softmax_entropy(outputs)
@@ -58,7 +92,8 @@ class SAR_WO_FREEZE(TTAMethod):
         loss.backward()
 
         self.optimizer.first_step(zero_grad=True)  # compute \hat{\epsilon(\Theta)} for first order approximation, Eqn. (4)
-        entropys2 = self.softmax_entropy(self.model(imgs_test))
+        second_output = self.model(imgs_test) + self.TAU *  torch.log(self._prior.clone()) if (self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS) else self.model(imgs_test)
+        entropys2 = self.softmax_entropy(second_output)
         entropys2 = entropys2[filter_ids_1]  # second time forward
         filter_ids_2 = torch.where(entropys2 < self.margin_e0)  # here filtering reliable samples again, since model weights have been changed to \Theta+\hat{\epsilon(\Theta)}
         loss_second = entropys2[filter_ids_2].mean(0)
@@ -74,13 +109,16 @@ class SAR_WO_FREEZE(TTAMethod):
                 logger.info(f"ema < {self.reset_constant_em}, now reset the model")
                 self.reset()
 
-        return outputs
+        self.minibatch_count += 1
+        return outputs        
 
     def reset(self):
         if self.model_states is None or self.optimizer_state is None:
             raise Exception("cannot reset without saved self.model/optimizer state")
         self.load_model_and_optimizer()
         self.ema = None
+        self._prior = None
+        self.minibatch_count = 0
 
     def collect_params(self):
         """Collect the affine scale + shift parameters from norm layers.
@@ -91,11 +129,38 @@ class SAR_WO_FREEZE(TTAMethod):
         params = []
         names = []
         for nm, m in self.model.named_modules():
+            # skip top layers for adaptation: layer4 for ResNets and blocks9-11 for Vit-Base
+            if 'layer4' in nm:
+                continue
+            if 'blocks.9' in nm:
+                continue
+            if 'blocks.10' in nm:
+                continue
+            if 'blocks.11' in nm:
+                continue
+            if 'norm.' in nm:
+                continue
+            if nm in ['norm']:
+                continue
+
+            # for torchvision vit_b_16 model
+            if 'layer_9' in nm:
+                continue
+            if 'layer_10' in nm:
+                continue
+            if 'layer_11' in nm:
+                continue
+            if 'ln.' in nm:
+                continue
+
+            print(f"{nm} Added to SAR")
             if isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)):
                 for np, p in m.named_parameters():
                     if np in ['weight', 'bias']:  # weight is scale, bias is shift
                         params.append(p)
                         names.append(f"{nm}.{np}")
+
+        logger.info(f"SAR Collected Parameters: {names}")
 
         return params, names
 

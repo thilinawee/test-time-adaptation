@@ -7,7 +7,6 @@ import logging
 import numpy as np
 from typing import Union
 from datasets.imagenet_subsets import IMAGENET_D_MAPPING
-from logit_explosion.calculations import calc_logit_norm
 from conf import GlobalVar
 
 
@@ -98,16 +97,14 @@ def get_accuracy(model: torch.nn.Module,
                  domain_dict: dict,
                  print_every: int,
                  device: Union[str, torch.device],
-                 acc_table: wandb.Table,
                  cfg):
 
     """
     Here model is a TTAMethod object. The forward method of this object runs the adaptation process
     if we need to just run the inference, we need to access, model.model object
-
-    wandb table has columns in the following order
-    1.corruption 2.severity 3.unadapted_acc 4.minibatch_acc 5.all_cls_acc 
     """
+
+    AVG_ACC_LOG_FREQ = cfg.AVG_ACC_LOG_FREQ if cfg.AVG_ACC_LOG_FREQ != -1 else print_every
 
     num_correct = 0.
     num_samples = 0
@@ -119,7 +116,8 @@ def get_accuracy(model: torch.nn.Module,
     if cfg.LOG_UNADAPTED_ACC:
         unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
         logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
-        wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
+    else:
+        unadapted_acc = -1
 
     global_var = GlobalVar()
 
@@ -149,8 +147,16 @@ def get_accuracy(model: torch.nn.Module,
 
                 batch_acc = num_correct / num_samples
                 logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
-                wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
 
+                # logging various variables important for analysis
+                if cfg.LOG_PRIOR:
+                    prior_log = ", ".join([f"class_{j}: {prob.item():.4f}" for j, prob in enumerate(model._prior)])
+                    logger.info(f"Prior probabilities for {domain_name} at step {i+1}: {prior_log}")
+
+                if cfg.LOG_LOSS:
+                    logger.info(f"Training loss for {domain_name} at step {i+1}: {model.loss.item():.6f}")
+
+            if print_every > 0 and (i+1) % (AVG_ACC_LOG_FREQ) == 0:
                 eval_model = deepcopy(model.model)
                 if cfg.CKPT_SAVE_PATH != "":
                     torch.save(eval_model, f"{cfg.CKPT_SAVE_PATH}/ckpt_{i+1}.pt")
@@ -158,113 +164,15 @@ def get_accuracy(model: torch.nn.Module,
                 if cfg.LOG_AVG_ACC:
                     avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
                     all_cls_avg_acc += avg_acc
-                    logger.info(f"all_cls_acc: {avg_acc:.2%}")
-                    wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
-
+                    logger.info(f"AllAcc for {domain_name} at step {i+1}: {avg_acc:.4f}")
 
             if dataset_name == "ccc" and num_samples >= 7500000:
                 break
 
 
     all_cls_avg_acc /= num_log_samples if num_log_samples > 0 else 1 # to avoid division by zero
-    logger.info(f"Average accuracy over all classes: {all_cls_avg_acc:.2%}")
+    logger.info(f"Average AllAcc: {all_cls_avg_acc:.2%}")
 
     accuracy = num_correct.item() / num_samples
 
-    acc_table.add_data(domain_name, severity, unadapted_acc, accuracy, all_cls_avg_acc)
-
-    return accuracy, domain_dict, num_samples
-
-def get_accuracy_and_calc_params(model: torch.nn.Module,
-                                train_data_loader: torch.utils.data.DataLoader,
-                                val_data_loader: torch.utils.data.DataLoader,
-                                dataset_name: str,
-                                domain_name: str,
-                                setting: str,
-                                domain_dict: dict,
-                                print_every: int,
-                                device: Union[str, torch.device],
-                                cfg):
-
-    """
-    Here model is a TTAMethod object. The forward method of this object runs the adaptation process
-    if we need to just run the inference, we need to access, model.model object
-    """
-
-    num_correct = 0.
-    num_samples = 0
-
-    # unadapted_model = model.original_model
-    # unadapted_acc, unadapted_samples = get_avg_validation_accuracy(unadapted_model, val_data_loader, device)
-    # logger.info(f"Unadapted accuracy: {unadapted_acc:.2%} over {unadapted_samples} samples")
-    # wandb.log({f"avg_accuracy/{domain_name}": unadapted_acc, "custom_step": 0})
-    n_val_loader_slices = 5
-    acc_log_freq = 200
-
-    with torch.no_grad():
-        for i, data in enumerate(train_data_loader):
-            imgs, labels = data[0], data[1]
-            output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
-            predictions = output.argmax(1)
-
-            if dataset_name == "imagenet_d" and domain_name != "none":
-                mapping_vector = list(IMAGENET_D_MAPPING.values())
-                predictions = torch.tensor([mapping_vector[pred] for pred in predictions], device=device)
-
-            num_correct += (predictions == labels.to(device)).float().sum()
-
-            if "mixed_domains" in setting and len(data) >= 3:
-                domain_dict = split_results_by_domain(domain_dict, data, predictions)
-
-            # track progress
-            num_samples += imgs[0].shape[0] if isinstance(imgs, list) else imgs.shape[0]
-
-            if print_every > 0 and (i+1) % acc_log_freq == 0:
-                batch_acc = num_correct / num_samples
-                logger.info(f"#batches={i+1:<6} #samples={num_samples:<9} error = {1 - num_correct / num_samples:.2%} accuracy = {num_correct / num_samples:.2%}")
-                wandb.log({f"batch_accuracy/{domain_name}": batch_acc, "custom_step": i + 1})
-
-                eval_model = deepcopy(model.model)
-                avg_acc, _ = get_avg_validation_accuracy(eval_model, val_data_loader, device)
-                logger.info(f"all_cls_acc: {avg_acc:.2%}")
-                wandb.log({f"avg_accuracy/{domain_name}": avg_acc, "custom_step": i + 1})
-
-            if print_every > 0 and (i+1) % print_every == 0:
-                avg_active_ln = 0
-                avg_inactive_ln = 0
-                eval_model = deepcopy(model.model)
-                sliced_val_loader = itertools.islice(val_data_loader, n_val_loader_slices)
-
-                with torch.no_grad():
-                    for ii, data in enumerate(sliced_val_loader):
-                        imgs, labels = data[0], data[1]
-                        output2 = eval_model([img.to(device) for img in imgs]) if isinstance(imgs, list) else eval_model(imgs.to(device))
-
-                        active_logits = output2[:, cfg.PARTIAL_CLASSES]
-                        active_logit_norm, _ = calc_logit_norm(torch.Tensor(active_logits))
-                        inactive_logits = output2[:, [x for x in range(output2.shape[1]) if x not in cfg.PARTIAL_CLASSES]]
-                        inactive_logit_norm, _ = calc_logit_norm(torch.Tensor(inactive_logits))
-
-
-                        avg_active_ln += active_logit_norm
-                        avg_inactive_ln += inactive_logit_norm
-                        # highest_active_logits = torch.topk(active_logits[0], k=10, largest=True).values
-                        # highest_inactive_logits = torch.topk(inactive_logits[0], k=10, largest=True).values
-
-                        # logger.info(f"Highest 10 active logits: {highest_active_logits}")
-                        # logger.info(f"Highest 10 inactive logits: {highest_inactive_logits}")
-
-                avg_active_ln /= n_val_loader_slices
-                avg_inactive_ln /= n_val_loader_slices
-
-                logger.info(f"Active Logit Norm: {avg_active_ln} inactive Logit Norm: {avg_inactive_ln}")
-                wandb.log({f"active_logit_norm/{domain_name}": avg_active_ln, "custom_step": i + 1})
-                wandb.log({f"inactive_logit_norm/{domain_name}": avg_inactive_ln, "custom_step": i + 1})
-
-            if dataset_name == "ccc" and num_samples >= 7500000:
-                break
-
-
-
-    accuracy = num_correct.item() / num_samples
     return accuracy, domain_dict, num_samples

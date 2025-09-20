@@ -16,7 +16,7 @@ from utils.registry import ADAPTATION_REGISTRY
 
 
 @ADAPTATION_REGISTRY.register()
-class DeYO_LOGIT_ADJUST(TTAMethod):
+class DEYO_LA_APX(TTAMethod):
     def __init__(self, cfg, model, num_classes):
         super().__init__(cfg, model, num_classes)
 
@@ -35,28 +35,50 @@ class DeYO_LOGIT_ADJUST(TTAMethod):
 
         self.ent = Entropy()
 
-        # test class priors
-        class_distribution = [0.0 for _ in range(num_classes)]
+        # logit adjustment related parameters
         self.TAU = cfg.LOGIT_ADJUST.TAU
         self.EPSILON = cfg.LOGIT_ADJUST.EPSILON
+        self.ALPHA = cfg.LOGIT_ADJUST.ALPHA
 
-        for i in range(num_classes):
-            if i in cfg.PARTIAL_CLASSES:
-                class_distribution[i] = 1.0 / len(cfg.PARTIAL_CLASSES)
-            else:
-                class_distribution[i] = self.EPSILON
+        self._prior = None
+        self.minibatch_count = 0 # to track number of forward passes
 
-        self.class_distribution = torch.tensor(class_distribution).to(self.device)
+        self.loss_calculation = self.select_loss_function(cfg)
 
-    def loss_calculation(self, x):
+    def select_loss_function(self, cfg):
+        if cfg.LOGIT_ADJUST.TYPE == "la":
+            return self.loss_la
+        else:
+            raise ValueError(f"Unknown logit adjustment type: {cfg.LOGIT_ADJUST.TYPE}")
+
+    def loss_la(self, x):
         """Forward and adapt model on batch of data.
         Measure entropy of the model prediction, take gradients, and update params.
         """
         imgs_test = x[0]
         outputs = self.model(imgs_test)
         # adjust logits
-        if self.TAU > 0:
-            outputs = outputs + self.TAU *  torch.log(self.class_distribution)
+        with torch.no_grad():
+            probs = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(probs, dim=1)
+            
+            class_counts = torch.bincount(predictions, minlength=outputs.shape[1]).float().clamp(min=self.EPSILON)
+            sqrt_counts = torch.sqrt(class_counts)
+            batch_prior = sqrt_counts / sqrt_counts.sum()
+            
+            if self._prior is None:
+                self._prior = batch_prior
+            else:
+                self._prior = self.ALPHA * self._prior + (1 - self.ALPHA) * batch_prior
+            
+            self._prior = self._prior.clamp(min=self.EPSILON)
+            self._prior = self._prior / self._prior.sum()
+        
+        # Adjust logits
+        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
+            if self.minibatch_count == self.WARMUP_STEPS + 1:
+                print("Warmup Completed. Applying Logit Adjustment.") 
+            outputs = outputs + self.TAU * torch.log(self._prior.clone())
 
         entropys = self.ent(outputs)
         filter_ids_1 = torch.where((entropys < self.deyo_margin))
@@ -90,7 +112,7 @@ class DeYO_LOGIT_ADJUST(TTAMethod):
             outputs_prime = self.model(x_prime)
             # adjust logits
             if self.TAU > 0:
-                outputs_prime = outputs_prime + self.TAU *  torch.log(self.class_distribution)
+                outputs_prime = outputs_prime + self.TAU *  torch.log(self._prior.clone())
 
         prob_outputs = outputs[filter_ids_1].softmax(1)
         prob_outputs_prime = outputs_prime.softmax(1)
@@ -115,7 +137,8 @@ class DeYO_LOGIT_ADJUST(TTAMethod):
             entropys = entropys.mul(coeff)
 
         loss = entropys.mean(0)
-        return outputs, loss
+        self.minibatch_count += 1
+        return outputs, loss        
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -188,3 +211,11 @@ class DeYO_LOGIT_ADJUST(TTAMethod):
             # LayerNorm and GroupNorm for ResNet-GN and Vit-LN models
             elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
                 m.requires_grad_(True)
+
+    def reset(self):
+        """Reset the model and optimizer state to the initial source state"""
+        if self.model_states is None or self.optimizer_state is None:
+            raise Exception("cannot reset without saved model/optimizer state")
+        self.load_model_and_optimizer()
+        self._prior = None
+        self.minibatch_count = 0

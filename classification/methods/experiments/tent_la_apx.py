@@ -8,42 +8,88 @@ import torch.nn as nn
 from methods.base import TTAMethod
 from utils.registry import ADAPTATION_REGISTRY
 from utils.losses import Entropy
+import torch.nn.functional as F
+import wandb
 
 
 @ADAPTATION_REGISTRY.register()
-class TENT_LOGIT_ADJUST(TTAMethod):
+class TENT_LA_APX(TTAMethod):
     """Tent adapts a model by entropy minimization during testing.
     Once tented, a model adapts itself by updating on every forward.
     """
     def __init__(self, cfg, model, num_classes):
         super().__init__(cfg, model, num_classes)
 
-        class_distribution = [0.0 for _ in range(num_classes)]
+        self.init_params = {}
+        for name, param in self.model.named_parameters():
+            if param.requires_grad:
+                self.init_params[name] = param.clone().detach()
+                
         self.TAU = cfg.LOGIT_ADJUST.TAU
         self.EPSILON = cfg.LOGIT_ADJUST.EPSILON
+        self.CONFIDENCE_THREASHOLD = cfg.LOGIT_ADJUST.CONFIDENCE_THREASHOLD
+        self.ENTROPY_THREASHOLD = cfg.LOGIT_ADJUST.ENTROPY_THREASHOLD
 
-        for i in range(num_classes):
-            if i in cfg.PARTIAL_CLASSES:
-                class_distribution[i] = 1.0 / len(cfg.PARTIAL_CLASSES)
-            else:
-                class_distribution[i] = self.EPSILON
+        self._prior = None 
+        self.ALPHA = cfg.LOGIT_ADJUST.ALPHA
+        self.WARMUP_STEPS = cfg.LOGIT_ADJUST.WARMUP_STEPS
 
-        self.class_distribution = torch.tensor(class_distribution).to(self.device)
-
-        print(f"Target Class Distribution: {self.class_distribution}")
+        self.loss = None
+        self.minibatch_count = 0 # to track number of forward passes
         # setup loss function
         self.softmax_entropy = Entropy()
 
-    def loss_calculation(self, x):
+        self.loss_calculation = self.select_loss_function(cfg)
+
+        print("Hyperparameters:")
+        print(f"TAU: {self.TAU}")
+        print(f"EPSILON: {self.EPSILON}")
+        print(f"ALPHA: {self.ALPHA}")
+
+    def select_loss_function(self, cfg):
+        if cfg.LOGIT_ADJUST.TYPE == "la":
+            return self.loss_la
+        else:
+            raise ValueError(f"Unknown logit adjustment type: {cfg.LOGIT_ADJUST.TYPE}")
+   
+    def loss_la(self, x):
         imgs_test = x[0]
         outputs = self.model(imgs_test)
-
-        # adjust logits
-        if self.TAU > 0:
-            outputs = outputs + self.TAU *  torch.log(self.class_distribution)
-
+        
+        with torch.no_grad():
+            probs = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(probs, dim=1)
+            
+            class_counts = torch.bincount(predictions, minlength=outputs.shape[1]).float().clamp(min=self.EPSILON)
+            sqrt_counts = torch.sqrt(class_counts)
+            batch_prior = sqrt_counts / sqrt_counts.sum()
+            
+            if self._prior is None:
+                self._prior = batch_prior
+            else:
+                self._prior = self.ALPHA * self._prior + (1 - self.ALPHA) * batch_prior
+            
+            self._prior = self._prior.clamp(min=self.EPSILON)
+            self._prior = self._prior / self._prior.sum()
+        
+        # Adjust logits
+        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
+            if self.minibatch_count == self.WARMUP_STEPS + 1:
+                print("Warmup Completed. Applying Logit Adjustment.") 
+            outputs = outputs + self.TAU * torch.log(self._prior.clone())
+        
         loss = self.softmax_entropy(outputs).mean(0)
-        return outputs, loss
+
+        self.loss = loss
+        self.minibatch_count += 1
+
+        return outputs, loss        
+
+    def log_class_prior(self):
+        """Log the current estimate of the class prior."""
+        if self._prior is not None:
+            prior_dict = {f"prior_class_{i}": prob.item() for i, prob in enumerate(self._prior)}
+            wandb.log(prior_dict)
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -102,3 +148,11 @@ class TENT_LOGIT_ADJUST(TTAMethod):
                 m.requires_grad_(True)
             elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
                 m.requires_grad_(True)
+
+    def reset(self):
+        """Reset the model and optimizer state to the initial source state"""
+        if self.model_states is None or self.optimizer_state is None:
+            raise Exception("cannot reset without saved model/optimizer state")
+        self.load_model_and_optimizer()
+        self._prior = None
+        self.minibatch_count = 0

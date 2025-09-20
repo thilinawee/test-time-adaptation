@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 @ADAPTATION_REGISTRY.register()
-class EATA_LOGIT_ADJUST(TTAMethod):
+class EATA_LA_APX(TTAMethod):
     """EATA adapts a model by entropy minimization during testing.
     Once EATAed, a model adapts itself by updating on every forward.
     """
@@ -77,27 +77,50 @@ class EATA_LOGIT_ADJUST(TTAMethod):
             self.fishers = None
 
         # logit adjustment
-        class_distribution = [0.0 for _ in range(num_classes)]
         self.TAU = cfg.LOGIT_ADJUST.TAU
         self.EPSILON = cfg.LOGIT_ADJUST.EPSILON
+        self.ALPHA = cfg.LOGIT_ADJUST.ALPHA
+        self.WARMUP_STEPS = cfg.LOGIT_ADJUST.WARMUP_STEPS
 
-        for i in range(num_classes):
-            if i in cfg.PARTIAL_CLASSES:
-                class_distribution[i] = 1.0 / len(cfg.PARTIAL_CLASSES)
-            else:
-                class_distribution[i] = self.EPSILON
+        self._prior = None
+        self.minibatch_count = 0 # to track number of forward passes
+        self.loss_calculation = self.select_loss_function(cfg)
 
-        self.class_distribution = torch.tensor(class_distribution).to(self.device)
+    def select_loss_function(self, cfg):
+        if cfg.LOGIT_ADJUST.TYPE == "la":
+            return self.loss_la
+        else:
+            raise ValueError(f"Unknown logit adjustment type: {cfg.LOGIT_ADJUST.TYPE}")
 
-    def loss_calculation(self, x):
+    def loss_la(self, x):
         """Forward and adapt model on batch of data.
         Measure entropy of the model prediction, take gradients, and update params.
         """
         imgs_test = x[0]
         outputs = self.model(imgs_test)
+
         # adjust logits
-        if self.TAU > 0:
-            outputs = outputs + self.TAU *  torch.log(self.class_distribution)
+        with torch.no_grad():
+            probs = torch.softmax(outputs, dim=1)
+            predictions = torch.argmax(probs, dim=1)
+            
+            class_counts = torch.bincount(predictions, minlength=outputs.shape[1]).float().clamp(min=self.EPSILON)
+            sqrt_counts = torch.sqrt(class_counts)
+            batch_prior = sqrt_counts / sqrt_counts.sum()
+            
+            if self._prior is None:
+                self._prior = batch_prior
+            else:
+                self._prior = self.ALPHA * self._prior + (1 - self.ALPHA) * batch_prior
+            
+            self._prior = self._prior.clamp(min=self.EPSILON)
+            self._prior = self._prior / self._prior.sum()
+        
+        # Adjust logits
+        if self.TAU > 0 and self.minibatch_count > self.WARMUP_STEPS:
+            if self.minibatch_count == self.WARMUP_STEPS + 1:
+                print("Warmup Completed. Applying Logit Adjustment.") 
+            outputs = outputs + self.TAU * torch.log(self._prior.clone())
             
         entropys = self.softmax_entropy(outputs)
 
@@ -163,6 +186,8 @@ class EATA_LOGIT_ADJUST(TTAMethod):
             raise Exception("cannot reset without saved model/optimizer state")
         self.load_model_and_optimizer()
         self.current_model_probs = None
+        self._prior = None
+        self.minibatch_count = 0
 
     def collect_params(self):
         """Collect the affine scale + shift parameters from batch norms.
